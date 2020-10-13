@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake</title>
+
+    <style>
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #canvas-wrapper {
+            position: relative;
+            border: 1px solid #333;
+            width: 90vmin;
+            height: 90vmin;
+        }
+
+        canvas {
+            width: 100%;
+        }
+
+        #stage {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-wrapper">
+        <canvas width="1280" height="1280" id="grid"></canvas>
+        <canvas width="1280" height="1280" id="stage"></canvas>
+    </div>
+
+    <script src="main.js">
+        const gridSize = 16;
+        const tickSpeed = 100;
+
+        const gridCanvas = document.getElementById("grid");
+        const canvas = document.getElementById("stage");
+        const ctx = canvas.getContext("2d");
+        const canvasWidth = canvas.width;
+        const cellSize = canvasWidth / gridSize;
+        const numTiles = gridSize**2;
+
+        const grid = new Array(numTiles);
+        const snake = {
+            head: -1,
+            tiles: [],
+            length: -1,
+            oldTale: -1
+        }
+
+        let apple = 0;
+        let currentDir = 0;
+        let lastMove = 0;
+
+        (() => {
+
+            const dirMap = [-1, -gridSize, 1, gridSize];
+            const activeKeys = [false, false, false, false];
+
+            document.addEventListener("keydown", e => {
+                const k = e.keyCode - 37;
+                if ((k < 0) || (k > 4) || activeKeys[k]) return;
+                activeKeys[k] = true;
+
+                const dir = dirMap[k];
+                if (dir + lastMove !== 0) currentDir = dir;
+                
+                e.preventDefault();
+            });
+
+            document.addEventListener("keyup", e => {
+                const k = e.keyCode - 37;
+                if ((k < 0) || (k > 4)) return;
+                activeKeys[k] = false;
+                e.preventDefault();
+            });
+        })();
+
+        function intToXy(num) {
+            const x = num % gridSize;
+            return [x, (num - x) / gridSize];
+        }
+
+        function drawEmptyCell(x, y, ctx) {
+            ctx.fillStyle = "#000";
+            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            
+            ctx.strokeStyle = "#333";
+            ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        }
+
+        function drawSnakeSegment(x, y, ctx) {
+            const segmentSize = cellSize - 4;
+            ctx.fillStyle = "#FFF";
+            ctx.fillRect(x * cellSize + 2, y * cellSize + 2, segmentSize, segmentSize);
+        }
+
+        function drawApple(x, y, ctx) {
+            const segmentSize = cellSize - 12;
+            ctx.fillStyle = "#F00";
+            ctx.fillRect(x * cellSize + 6, y * cellSize + 6, segmentSize, segmentSize);
+        }
+
+        function clearCell(x, y, ctx) {
+            ctx.clearRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        }
+
+        function drawGrid(canvas) {
+            const cellCanvas = document.createElement("canvas");
+            cellCanvas.width = cellSize;
+            cellCanvas.height = cellSize;
+            drawEmptyCell(0, 0, cellCanvas.getContext("2d"));
+
+            const ctx = canvas.getContext("2d");
+            const gridPattern = ctx.createPattern(cellCanvas, "repeat");
+
+            ctx.fillStyle = gridPattern;
+            ctx.fillRect(0, 0, canvasWidth, canvasWidth);
+        }
+
+        let nextTile = 0;
+        function updateSnake() {
+            nextTile = snake.head + currentDir;
+            lastMove = currentDir;
+
+            if (nextTile === apple) {
+                snake.oldTale = -1;
+                placeApple();
+            } else if (
+                currentDir !== 0 && (
+                    grid[nextTile] ||
+                    nextTile < 0 ||
+                    nextTile > numTiles ||
+                    (currentDir === -1 && (nextTile%gridSize > snake.head%gridSize)) ||
+                    (currentDir === 1 && (nextTile%gridSize < snake.head%gridSize))
+                )
+            ) {
+                die(snake.tiles.length);
+                return;
+            } else if (snake.tiles.length < snake.length) {
+                snake.oldTale = -1;
+            } else {
+                snake.oldTale = snake.tiles.shift();
+                grid[snake.oldTale] = false;
+            }
+
+            snake.head = nextTile;
+            snake.tiles.push(nextTile);
+            grid[nextTile] = true;
+        }
+
+        function placeApple() {
+            apple = Math.floor(Math.random() * numTiles);
+
+            if (grid[apple]) {
+                placeApple();
+                return;
+            }
+
+            drawApple(...intToXy(apple), ctx);
+        }
+
+        function newGame() {
+            snake.head = Math.floor(numTiles/2 + gridSize/2);
+            snake.tiles = [snake.head];
+            snake.length = 3;
+
+            currentDir = 0;
+            lastMove = 0;
+            
+            grid.fill(false);
+            ctx.clearRect(0, 0, canvasWidth, canvasWidth);
+
+            placeApple();
+        }
+
+        function die(score) {
+            window.confirm(`You died. Score: ${score}`);
+            newGame();
+        }
+
+        drawGrid(gridCanvas);
+        newGame();
+
+        window.setInterval(() => {
+            updateSnake();
+            drawSnakeSegment(...intToXy(snake.head), ctx);
+
+            if (snake.oldTale > -1 && currentDir !== 0) clearCell(...intToXy(snake.oldTale), ctx);
+        }, tickSpeed);
+    </script>
+</body>
+</html>
